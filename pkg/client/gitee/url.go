@@ -23,7 +23,7 @@ func ParseGiteeRepoUrl(url string) (*common.RepoUrl, error) {
 	}
 
 	// HTTPS URL
-	re = regexp.MustCompile(`^https://gitee\.com/([\w\-.]+)/([\w\-.]+)(?:\.git)?$`)
+	re = regexp.MustCompile(`^https://gitee\.com/([\w\-.]+)/([\w\-.]+?)(?:\.git)?$`)
 	match = re.FindStringSubmatch(url)
 	if match != nil {
 		info.Owner = match[1]

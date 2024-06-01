@@ -10,6 +10,9 @@ type DataStore interface {
 	GithubRepoExists(owner, repo string) (bool, error)
 	SaveGithubRepo(owner, repo string) error
 
+	GiteeRepoExists(owner, repo string) (bool, error)
+	SaveGiteeRepo(owner, repo string) error
+
 	IsCommitDownloaded(id string) (bool, error)
 	SetCommitDownloaded(id string) error
 

@@ -1,10 +1,15 @@
 package fslock
 
+import (
+	"github.com/sirupsen/logrus"
+)
+
 type fsLock struct {
 	filename string
 }
 
 func New(filename string) Lock {
+	logrus.Warnf("Fslock for windows is not supported")
 	return &fsLock{filename: filename}
 }
 

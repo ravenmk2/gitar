@@ -1,6 +1,7 @@
 paths:
   data: /data/gitar
-  repo: /data/gitar
+  archive: /data/gitar/archives
+  repository: /data/gitar/repos
   temp: /run/gitar
 github:
   token: 0000000000

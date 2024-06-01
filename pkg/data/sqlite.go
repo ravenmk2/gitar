@@ -60,6 +60,12 @@ func (me *Sqlite3DataStore) initDatabase() error {
 		PRIMARY KEY([owner], [repo])
 	);
 
+	CREATE TABLE IF NOT EXISTS [gitee_repo] (
+		[owner] TEXT NOT NULL,
+		[repo]  TEXT NOT NULL,
+		PRIMARY KEY([owner], [repo])
+	);
+
 	CREATE TABLE IF NOT EXISTS [commit_downloaded] (
 		[id] TEXT NOT NULL PRIMARY KEY
 	);
@@ -132,6 +138,25 @@ func (me *Sqlite3DataStore) SaveGithubRepo(owner, repo string) error {
 	}
 
 	cmd := "INSERT INTO [github_repo] ([owner], [repo]) VALUES(?, ?);"
+	_, err = me.db.Exec(cmd, owner, repo)
+	return err
+}
+
+func (me *Sqlite3DataStore) GiteeRepoExists(owner, repo string) (bool, error) {
+	cmd := fmt.Sprintf("SELECT count(*) FROM [gitee_repo] WHERE [owner] = ? AND [repo] = ?;")
+	return me.queryExists(cmd, owner, repo)
+}
+
+func (me *Sqlite3DataStore) SaveGiteeRepo(owner, repo string) error {
+	exists, err := me.GiteeRepoExists(owner, repo)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+
+	cmd := "INSERT INTO [gitee_repo] ([owner], [repo]) VALUES(?, ?);"
 	_, err = me.db.Exec(cmd, owner, repo)
 	return err
 }

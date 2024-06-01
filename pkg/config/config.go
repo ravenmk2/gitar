@@ -15,9 +15,10 @@ var (
 )
 
 type PathsProperties struct {
-	Data string `yaml:"data"`
-	Repo string `yaml:"repo"`
-	Temp string `yaml:"temp"`
+	Data       string `yaml:"data"`
+	Archive    string `yaml:"archive"`
+	Repository string `yaml:"repository"`
+	Temp       string `yaml:"temp"`
 }
 
 type GitHubProperties struct {

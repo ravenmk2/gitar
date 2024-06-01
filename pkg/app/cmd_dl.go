@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"gitar/pkg/client"
-	"gitar/pkg/client/github"
 	"gitar/pkg/config"
 	"gitar/pkg/data"
 	"gitar/pkg/fslock"
@@ -60,23 +59,18 @@ func DoDownloadArchive(url string, shouldSendMail bool) error {
 	if err = os.MkdirAll(cfg.Paths.Data, os.ModePerm); err != nil {
 		return err
 	}
-	if err = os.MkdirAll(cfg.Paths.Repo, os.ModePerm); err != nil {
+	if err = os.MkdirAll(cfg.Paths.Archive, os.ModePerm); err != nil {
 		return err
 	}
 
-	store := data.NewSqlite3DataStore(filepath.Join(cfg.Paths.Data, "gitar.sqlite"))
-	err = store.Open()
+	store, err := data.OpenDataStore(cfg.Paths.Data)
 	if err != nil {
 		return err
 	}
 
-	if repoUrl.Platform == github.Platform {
-		err = store.SaveGithubRepo(repoUrl.Owner, repoUrl.Repo)
-		if err != nil {
-			return err
-		}
-	} else {
-		return fmt.Errorf("unsupported platform: %s", repoUrl.Platform)
+	err = SaveRepo(store, repoUrl)
+	if err != nil {
+		return err
 	}
 
 	markDownloaded, err := store.IsCommitDownloaded(arc.Commit)
@@ -85,7 +79,7 @@ func DoDownloadArchive(url string, shouldSendMail bool) error {
 	}
 
 	arcFile := fmt.Sprintf("%s.tar.xz", arc.Name)
-	destDir := filepath.Join(cfg.Paths.Repo, repoUrl.Platform, repoUrl.Owner, repoUrl.Repo)
+	destDir := filepath.Join(cfg.Paths.Archive, repoUrl.Platform, repoUrl.Owner, repoUrl.Repo)
 	destPath := filepath.Join(destDir, arcFile)
 
 	if markDownloaded && !shouldSendMail {

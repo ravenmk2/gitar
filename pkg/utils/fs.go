@@ -12,7 +12,21 @@ func FileExists(filename string) (bool, error) {
 	if err == nil {
 		return !info.IsDir(), nil
 	}
-	return !os.IsNotExist(err), nil
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func DirExists(filename string) (bool, error) {
+	info, err := os.Stat(filename)
+	if err == nil {
+		return info.IsDir(), nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 func CopyFile(srcPath, dstPath string) error {
