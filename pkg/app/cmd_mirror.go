@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -79,7 +80,7 @@ func DoMirrorRepository(url string, useSSH, shouldSendMail bool) error {
 		return err
 	}
 
-	return repoFetchUntilOk(repoDir, repo)
+	return repoFetchUntilOk(repoDir, repo, useSSH)
 }
 
 func openOrInit(repoDir string, url string) (*git.Repository, error) {
@@ -112,15 +113,20 @@ func openOrInit(repoDir string, url string) (*git.Repository, error) {
 	return repo, nil
 }
 
-func repoFetchUntilOk(repoDir string, repo *git.Repository) error {
+func repoFetchUntilOk(repoDir string, repo *git.Repository, useSSH bool) error {
 	remotes, err := repo.Remotes()
 	if err != nil {
 		return err
 	}
 
+	fetchFn := repoFetchBuiltin
+	if useSSH {
+		fetchFn = repoFetchCli
+	}
+
 	for _, remote := range remotes {
 		for true {
-			err := repoFetch(remote)
+			err := fetchFn(repoDir, remote)
 			repoRemoveTempFiles(repoDir)
 			if err == nil {
 				return nil
@@ -130,10 +136,10 @@ func repoFetchUntilOk(repoDir string, repo *git.Repository) error {
 		}
 	}
 
-	return errors.New("failed to fetch")
+	return errors.New("failed to fetch.")
 }
 
-func repoFetch(remote *git.Remote) error {
+func repoFetchBuiltin(repoDir string, remote *git.Remote) error {
 	logrus.Infof("Fetching %s", remote.Config().Name)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
@@ -148,6 +154,16 @@ func repoFetch(remote *git.Remote) error {
 		return nil
 	}
 	return err
+}
+
+func repoFetchCli(repoDir string, remote *git.Remote) error {
+	remoteName := remote.Config().Name
+	logrus.Infof("Fetching %s", remoteName)
+	cmd := exec.Command("git", "fetch", remoteName)
+	cmd.Dir = repoDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func repoRemoveTempFiles(dir string) {
