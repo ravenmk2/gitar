@@ -75,7 +75,12 @@ func DoMirrorRepository(url string, useSSH, shouldSendMail bool) error {
 		urlFormat = "git@%s:%s/%s.git"
 	}
 	gitUrl := fmt.Sprintf(urlFormat, repoUrl.Host, repoUrl.Owner, repoUrl.Repo)
-	repo, err := openOrInit(repoDir, gitUrl)
+	repo, err := openOrInit(repoDir)
+	if err != nil {
+		return err
+	}
+
+	err = ensureRemote(repo, gitUrl)
 	if err != nil {
 		return err
 	}
@@ -83,7 +88,40 @@ func DoMirrorRepository(url string, useSSH, shouldSendMail bool) error {
 	return repoFetchUntilOk(repoDir, repo, useSSH)
 }
 
-func openOrInit(repoDir string, url string) (*git.Repository, error) {
+func ensureRemote(repo *git.Repository, url string) error {
+	remoteName := "origin"
+	remote, err := repo.Remote(remoteName)
+
+	if err != nil {
+		if errors.Is(err, git.ErrRemoteNotFound) {
+			logrus.Infof("Add remote: %s => %s", remoteName, url)
+			_, err = repo.CreateRemote(&gitcfg.RemoteConfig{
+				Name: remoteName,
+				URLs: []string{url},
+			})
+			return err
+		}
+		return err
+	}
+
+	remoteUrl := remote.Config().URLs[0]
+	if remoteUrl == url {
+		return nil
+	}
+
+	logrus.Infof("Update remote: %s => %s", remoteName, url)
+	err = repo.DeleteRemote(remoteName)
+	if err != nil {
+		return err
+	}
+	_, err = repo.CreateRemote(&gitcfg.RemoteConfig{
+		Name: remoteName,
+		URLs: []string{url},
+	})
+	return err
+}
+
+func openOrInit(repoDir string) (*git.Repository, error) {
 	exists, err := utils.DirExists(repoDir)
 	if err != nil {
 		return nil, err
@@ -96,21 +134,9 @@ func openOrInit(repoDir string, url string) (*git.Repository, error) {
 	}
 
 	logrus.Infof("Initialize local repository")
-	repo, err := git.PlainInitWithOptions(repoDir, &git.PlainInitOptions{
+	return git.PlainInitWithOptions(repoDir, &git.PlainInitOptions{
 		Bare: true,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = repo.CreateRemote(&gitcfg.RemoteConfig{
-		Name: "origin",
-		URLs: []string{url},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return repo, nil
 }
 
 func repoFetchUntilOk(repoDir string, repo *git.Repository, useSSH bool) error {
