@@ -36,6 +36,7 @@ func NewMirrorCommand() *cli.Command {
 		Usage:   "Make a git repository mirror",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "debug", Required: false, Value: false},
+			&cli.BoolFlag{Name: "ssh", Required: false, Value: false},
 			&cli.BoolFlag{Name: "mail", Aliases: []string{"m"}, Required: false, Value: false},
 		},
 		Action: func(ctx *cli.Context) error {
@@ -44,7 +45,7 @@ func NewMirrorCommand() *cli.Command {
 				logrus.SetLevel(logrus.DebugLevel)
 			}
 			url := ctx.Args().First()
-			return MirrorRepository(url, ctx.Bool("mail"))
+			return MirrorRepository(url, ctx.Bool("ssh"), ctx.Bool("mail"))
 		},
 	}
 }

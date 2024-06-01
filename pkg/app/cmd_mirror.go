@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"gitar/pkg/client"
-	"gitar/pkg/client/common"
 	"gitar/pkg/config"
 	"gitar/pkg/data"
 	"gitar/pkg/fslock"
@@ -19,15 +18,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func MirrorRepository(url string, shouldSendMail bool) error {
-	err := DoMirrorRepository(url, shouldSendMail)
+func MirrorRepository(url string, useSSH, shouldSendMail bool) error {
+	err := DoMirrorRepository(url, useSSH, shouldSendMail)
 	if err == nil {
 		logrus.Infof("All done")
 	}
 	return err
 }
 
-func DoMirrorRepository(url string, shouldSendMail bool) error {
+func DoMirrorRepository(url string, useSSH, shouldSendMail bool) error {
 	logrus.Infof("Mirroring repository: %s", url)
 
 	cfg, err := config.LoadConfig()
@@ -70,7 +69,12 @@ func DoMirrorRepository(url string, shouldSendMail bool) error {
 		}
 	}(lock)
 
-	repo, err := openOrInit(repoDir, repoUrl)
+	urlFormat := "https://%s/%s/%s.git"
+	if useSSH {
+		urlFormat = "git@%s:%s/%s.git"
+	}
+	gitUrl := fmt.Sprintf(urlFormat, repoUrl.Host, repoUrl.Owner, repoUrl.Repo)
+	repo, err := openOrInit(repoDir, gitUrl)
 	if err != nil {
 		return err
 	}
@@ -78,7 +82,7 @@ func DoMirrorRepository(url string, shouldSendMail bool) error {
 	return repoFetchUntilOk(repoDir, repo)
 }
 
-func openOrInit(repoDir string, url *common.RepoUrl) (*git.Repository, error) {
+func openOrInit(repoDir string, url string) (*git.Repository, error) {
 	exists, err := utils.DirExists(repoDir)
 	if err != nil {
 		return nil, err
@@ -98,11 +102,9 @@ func openOrInit(repoDir string, url *common.RepoUrl) (*git.Repository, error) {
 		return nil, err
 	}
 
-	repoUrl := fmt.Sprintf("https://%s/%s/%s.git", url.Host, url.Owner, url.Repo)
-
 	_, err = repo.CreateRemote(&gitcfg.RemoteConfig{
 		Name: "origin",
-		URLs: []string{repoUrl},
+		URLs: []string{url},
 	})
 	if err != nil {
 		return nil, err
