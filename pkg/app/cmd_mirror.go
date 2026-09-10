@@ -19,15 +19,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func MirrorRepository(url string, useSSH, shouldSendMail bool) error {
-	err := DoMirrorRepository(url, useSSH, shouldSendMail)
+func MirrorRepository(url string, useSSH, shouldSendMail bool, maxRetries int) error {
+	err := DoMirrorRepository(url, useSSH, shouldSendMail, maxRetries)
 	if err == nil {
 		logrus.Infof("All done")
 	}
 	return err
 }
 
-func DoMirrorRepository(url string, useSSH, shouldSendMail bool) error {
+func DoMirrorRepository(url string, useSSH, shouldSendMail bool, maxRetries int) error {
 	logrus.Infof("Mirroring repository: %s", url)
 
 	cfg, err := config.LoadConfig()
@@ -90,7 +90,7 @@ func DoMirrorRepository(url string, useSSH, shouldSendMail bool) error {
 		return err
 	}
 
-	return repoFetchUntilOk(repoDir, repo, useSSH)
+	return repoFetchUntilOk(repoDir, repo, useSSH, maxRetries)
 }
 
 func ensureRemote(repo *git.Repository, url string) error {
@@ -144,7 +144,7 @@ func openOrInit(repoDir string) (*git.Repository, error) {
 	})
 }
 
-func repoFetchUntilOk(repoDir string, repo *git.Repository, useSSH bool) error {
+func repoFetchUntilOk(repoDir string, repo *git.Repository, useSSH bool, maxAttempts int) error {
 	remotes, err := repo.Remotes()
 	if err != nil {
 		return err
@@ -155,7 +155,9 @@ func repoFetchUntilOk(repoDir string, repo *git.Repository, useSSH bool) error {
 		fetchFn = repoFetchCli
 	}
 
-	const maxAttempts = 5
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
 	for _, remote := range remotes {
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			err := fetchFn(repoDir, remote)

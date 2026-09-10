@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 func NewSqlite3DataStore(dsn string) DataStore {
@@ -27,7 +26,7 @@ func (me *Sqlite3DataStore) String() string {
 }
 
 func (me *Sqlite3DataStore) Open() error {
-	db, err := sqlx.Open("sqlite3", me.dsn)
+	db, err := sqlx.Open(driverName, me.dsn)
 	if err != nil {
 		return err
 	}

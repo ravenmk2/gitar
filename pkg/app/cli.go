@@ -38,6 +38,7 @@ func NewMirrorCommand() *cli.Command {
 			&cli.BoolFlag{Name: "debug", Required: false, Value: false},
 			&cli.BoolFlag{Name: "ssh", Required: false, Value: false},
 			&cli.BoolFlag{Name: "mail", Aliases: []string{"m"}, Required: false, Value: false},
+			&cli.IntFlag{Name: "retry", Required: false, Value: 20, Usage: "max retry attempts"},
 		},
 		Action: func(ctx *cli.Context) error {
 			debug := ctx.Bool("debug")
@@ -45,7 +46,7 @@ func NewMirrorCommand() *cli.Command {
 				logrus.SetLevel(logrus.DebugLevel)
 			}
 			url := ctx.Args().First()
-			return MirrorRepository(url, ctx.Bool("ssh"), ctx.Bool("mail"))
+			return MirrorRepository(url, ctx.Bool("ssh"), ctx.Bool("mail"), ctx.Int("retry"))
 		},
 	}
 }
@@ -58,6 +59,7 @@ func NewDownloadCommand() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "debug", Required: false, Value: false},
 			&cli.BoolFlag{Name: "mail", Aliases: []string{"m"}, Required: false, Value: false},
+			&cli.IntFlag{Name: "retry", Required: false, Value: 20, Usage: "max retry attempts"},
 		},
 		Action: func(ctx *cli.Context) error {
 			debug := ctx.Bool("debug")
@@ -65,7 +67,7 @@ func NewDownloadCommand() *cli.Command {
 				logrus.SetLevel(logrus.DebugLevel)
 			}
 			url := ctx.Args().First()
-			return DownloadArchive(url, ctx.Bool("mail"))
+			return DownloadArchive(url, ctx.Bool("mail"), ctx.Int("retry"))
 		},
 	}
 }

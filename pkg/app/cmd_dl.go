@@ -16,15 +16,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func DownloadArchive(url string, shouldSendMail bool) error {
-	err := DoDownloadArchive(url, shouldSendMail)
+func DownloadArchive(url string, shouldSendMail bool, maxRetries int) error {
+	err := DoDownloadArchive(url, shouldSendMail, maxRetries)
 	if err == nil {
 		logrus.Infof("All done")
 	}
 	return err
 }
 
-func DoDownloadArchive(url string, shouldSendMail bool) error {
+func DoDownloadArchive(url string, shouldSendMail bool, maxRetries int) error {
 	logrus.Infof("Downloading archive")
 
 	cfg, err := config.LoadConfig()
@@ -128,7 +128,7 @@ func DoDownloadArchive(url string, shouldSendMail bool) error {
 			return err
 		}
 
-		err = utils.CurlDownload(arc.TarUrl, cfg.Paths.Temp, tempFile, -1)
+		err = utils.CurlDownload(arc.TarUrl, cfg.Paths.Temp, tempFile, maxRetries)
 		if err != nil {
 			return err
 		}
@@ -186,7 +186,7 @@ func DoDownloadArchive(url string, shouldSendMail bool) error {
 		} else {
 			subject := fmt.Sprintf("%s:%s/%s.tar.xz", repoUrl.Platform, repoUrl.Owner, arc.Name)
 
-			err := sendMailWithRetry(destPath, subject, 8)
+			err := sendMailWithRetry(destPath, subject, maxRetries)
 			if err != nil {
 				return err
 			}
