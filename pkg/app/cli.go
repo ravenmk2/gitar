@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -17,13 +18,18 @@ func RunCliApp() error {
 }
 
 func NewCliApp() *cli.App {
+	cli.VersionPrinter = func(ctx *cli.Context) {
+		fmt.Println(VersionString())
+	}
 	app := &cli.App{
 		Name:        AppName,
 		Usage:       AppName,
 		Description: "Git Archive & Repository Tool",
+		Version:     Version,
 		Commands: []*cli.Command{
 			NewMirrorCommand(),
 			NewDownloadCommand(),
+			NewVersionCommand(),
 		},
 	}
 	return app
