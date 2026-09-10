@@ -1,0 +1,33 @@
+name: test
+
+on:
+  push:
+    branches: [develop, master, main]
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, CGO_ENABLED=${{ matrix.cgo }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        cgo: ["0", "1"]
+    env:
+      CGO_ENABLED: ${{ matrix.cgo }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: vet
+        run: go vet ./...
+
+      - name: build
+        run: go build ./...
+
+      - name: test
+        run: go test ./...

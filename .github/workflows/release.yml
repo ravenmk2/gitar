@@ -1,0 +1,98 @@
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: test (CGO_ENABLED=${{ matrix.cgo }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cgo: ["0", "1"]
+    env:
+      CGO_ENABLED: ${{ matrix.cgo }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: vet
+        run: go vet ./...
+
+      - name: test
+        run: go test ./...
+
+  build:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+    env:
+      CGO_ENABLED: "0"
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: build
+        shell: bash
+        run: |
+          name="gitar_${GITHUB_REF_NAME}_${GOOS}_${GOARCH}"
+          if [ "$GOOS" = "windows" ]; then
+            name="${name}.exe"
+          fi
+          go build -trimpath -ldflags "-s -w -X gitar/pkg/app.Version=${GITHUB_REF_NAME} -X gitar/pkg/app.GitSHA=${GITHUB_SHA}" -o "$name" .
+          echo "BINARY=$name" >> "$GITHUB_ENV"
+
+      - name: checksum
+        shell: bash
+        run: sha256sum "$BINARY" > "${BINARY}.sha256"
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitar-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            ${{ env.BINARY }}
+            ${{ env.BINARY }}.sha256
+
+  publish:
+    name: publish to GitHub Releases
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: merge checksums
+        shell: bash
+        working-directory: dist
+        run: |
+          cat *.sha256 > checksums.txt
+          rm -f *.sha256
+          ls -la
+
+      - name: release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
