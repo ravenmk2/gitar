@@ -47,6 +47,11 @@ func DoMirrorRepository(url string, useSSH, shouldSendMail bool) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			logrus.Error(err)
+		}
+	}()
 
 	err = SaveRepo(store, repoUrl)
 	if err != nil {
@@ -150,19 +155,24 @@ func repoFetchUntilOk(repoDir string, repo *git.Repository, useSSH bool) error {
 		fetchFn = repoFetchCli
 	}
 
+	const maxAttempts = 5
 	for _, remote := range remotes {
-		for true {
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			err := fetchFn(repoDir, remote)
 			repoRemoveTempFiles(repoDir)
 			if err == nil {
 				return nil
-			} else {
-				logrus.Error(err)
+			}
+			logrus.Error(err)
+			if attempt < maxAttempts {
+				delay := time.Duration(attempt*attempt) * time.Second
+				logrus.Infof("Retry fetch after %s (%d/%d)", delay, attempt, maxAttempts)
+				time.Sleep(delay)
 			}
 		}
 	}
 
-	return errors.New("failed to fetch.")
+	return errors.New("failed to fetch")
 }
 
 func repoFetchBuiltin(repoDir string, remote *git.Remote) error {

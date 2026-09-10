@@ -110,54 +110,30 @@ func (me *Sqlite3DataStore) RepoExists(repo string) (bool, error) {
 }
 
 func (me *Sqlite3DataStore) SaveRepo(repo string) error {
-	exists, err := me.RepoExists(repo)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-
-	cmd := "INSERT INTO [git_repo] ([repo]) VALUES(?);"
-	_, err = me.db.Exec(cmd, repo)
+	cmd := "INSERT OR IGNORE INTO [git_repo] ([repo]) VALUES(?);"
+	_, err := me.db.Exec(cmd, repo)
 	return err
 }
 
 func (me *Sqlite3DataStore) GithubRepoExists(owner, repo string) (bool, error) {
-	cmd := fmt.Sprintf("SELECT count(*) FROM [github_repo] WHERE [owner] = ? AND [repo] = ?;")
+	cmd := "SELECT count(*) FROM [github_repo] WHERE [owner] = ? AND [repo] = ?;"
 	return me.queryExists(cmd, owner, repo)
 }
 
 func (me *Sqlite3DataStore) SaveGithubRepo(owner, repo string) error {
-	exists, err := me.GithubRepoExists(owner, repo)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-
-	cmd := "INSERT INTO [github_repo] ([owner], [repo]) VALUES(?, ?);"
-	_, err = me.db.Exec(cmd, owner, repo)
+	cmd := "INSERT OR IGNORE INTO [github_repo] ([owner], [repo]) VALUES(?, ?);"
+	_, err := me.db.Exec(cmd, owner, repo)
 	return err
 }
 
 func (me *Sqlite3DataStore) GiteeRepoExists(owner, repo string) (bool, error) {
-	cmd := fmt.Sprintf("SELECT count(*) FROM [gitee_repo] WHERE [owner] = ? AND [repo] = ?;")
+	cmd := "SELECT count(*) FROM [gitee_repo] WHERE [owner] = ? AND [repo] = ?;"
 	return me.queryExists(cmd, owner, repo)
 }
 
 func (me *Sqlite3DataStore) SaveGiteeRepo(owner, repo string) error {
-	exists, err := me.GiteeRepoExists(owner, repo)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-
-	cmd := "INSERT INTO [gitee_repo] ([owner], [repo]) VALUES(?, ?);"
-	_, err = me.db.Exec(cmd, owner, repo)
+	cmd := "INSERT OR IGNORE INTO [gitee_repo] ([owner], [repo]) VALUES(?, ?);"
+	_, err := me.db.Exec(cmd, owner, repo)
 	return err
 }
 
@@ -166,7 +142,7 @@ func (me *Sqlite3DataStore) IsCommitDownloaded(id string) (bool, error) {
 }
 
 func (me *Sqlite3DataStore) SetCommitDownloaded(id string) error {
-	cmd := "INSERT INTO [commit_downloaded] ([id]) VALUES(?);"
+	cmd := "INSERT OR IGNORE INTO [commit_downloaded] ([id]) VALUES(?);"
 	_, err := me.db.Exec(cmd, id)
 	return err
 }
@@ -176,7 +152,7 @@ func (me *Sqlite3DataStore) IsCommitMailed(id string) (bool, error) {
 }
 
 func (me *Sqlite3DataStore) SetCommitMailed(id string) error {
-	cmd := "INSERT INTO [commit_mailed] ([id]) VALUES(?);"
+	cmd := "INSERT OR IGNORE INTO [commit_mailed] ([id]) VALUES(?);"
 	_, err := me.db.Exec(cmd, id)
 	return err
 }

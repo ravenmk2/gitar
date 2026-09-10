@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"runtime"
 )
 
 func FileExists(filename string) (bool, error) {
@@ -51,8 +50,8 @@ func CopyFile(srcPath, dstPath string) error {
 }
 
 func MoveFile(srcPath, dstPath string) error {
-	if runtime.GOOS == "windows" {
-		return os.Rename(srcPath, dstPath)
+	if err := os.Rename(srcPath, dstPath); err == nil {
+		return nil
 	}
 
 	err := CopyFile(srcPath, dstPath)

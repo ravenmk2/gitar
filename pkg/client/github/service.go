@@ -72,10 +72,10 @@ func (me *GitHubService) branchToArchive(url common.RepoUrl, branch *github.Bran
 	// https://github.com/{owner}/{repo}/archive/{commit-sha}.{format}
 	// 使用 Commit ID 保证在下载时和 API 查到的保持一致
 
-	commit := *branch.Commit.SHA
+	commit := branch.GetCommit().GetSHA()
 	arcUrl := fmt.Sprintf("https://github.com/%s/%s/archive/%s", url.Owner, url.Repo, commit)
 
-	arc.Name = fmt.Sprintf("%s-%s-%s", url.Repo, *branch.Name, commit[:7])
+	arc.Name = fmt.Sprintf("%s-%s-%s", url.Repo, branch.GetName(), shortCommit(commit))
 	arc.Name = strings.ReplaceAll(arc.Name, "/", "-")
 	arc.Commit = commit
 	arc.TarUrl = arcUrl + ".tar.gz"
@@ -91,7 +91,7 @@ func (me *GitHubService) resolveArchiveByCommit(url common.RepoUrl) (*common.Arc
 
 	arcUrl := fmt.Sprintf("https://github.com/%s/%s/archive/%s", url.Owner, url.Repo, url.Commit)
 
-	arc.Name = fmt.Sprintf("%s-%s", url.Repo, url.Commit[:7])
+	arc.Name = fmt.Sprintf("%s-%s", url.Repo, shortCommit(url.Commit))
 	arc.Commit = url.Commit
 	arc.TarUrl = arcUrl + ".tar.gz"
 	arc.ZipUrl = arcUrl + ".zip"
@@ -123,7 +123,7 @@ func (me *GitHubService) resolveArchiveByTag(url common.RepoUrl, tagName string)
 
 	arc.Name = arcName
 	arc.Name = strings.ReplaceAll(arc.Name, "/", "-")
-	arc.Commit = *tag.Commit.SHA
+	arc.Commit = tag.GetCommit().GetSHA()
 	arc.TarUrl = arcUrl + ".tar.gz"
 	arc.ZipUrl = arcUrl + ".zip"
 
@@ -131,10 +131,6 @@ func (me *GitHubService) resolveArchiveByTag(url common.RepoUrl, tagName string)
 }
 
 func (me *GitHubService) resolveArchiveByBranch(url common.RepoUrl) (*common.ArchiveInfo, error) {
-	arc := &common.ArchiveInfo{
-		Platform: Platform,
-	}
-
 	branch, err := me.findBranch(url.Owner, url.Repo, url.Branch)
 	if err != nil {
 		return nil, err
@@ -143,19 +139,7 @@ func (me *GitHubService) resolveArchiveByBranch(url common.RepoUrl) (*common.Arc
 		return nil, errors.New("no matched branch")
 	}
 
-	// https://github.com/{owner}/{repo}/archive/{commit-sha}.{format}
-	// 使用 Commit ID 保证在下载时和 API 查到的保持一致
-
-	commit := *branch.Commit.SHA
-	arcUrl := fmt.Sprintf("https://github.com/%s/%s/archive/%s", url.Owner, url.Repo, commit)
-
-	arc.Name = fmt.Sprintf("%s-%s-%s", url.Repo, *branch.Name, commit[:7])
-	arc.Name = strings.ReplaceAll(arc.Name, "/", "-")
-	arc.Commit = commit
-	arc.TarUrl = arcUrl + ".tar.gz"
-	arc.ZipUrl = arcUrl + ".zip"
-
-	return validateArchive(arc)
+	return me.branchToArchive(url, branch)
 }
 
 func (me *GitHubService) findBestBranch(owner, repo string) (*github.Branch, error) {
@@ -164,34 +148,35 @@ func (me *GitHubService) findBestBranch(owner, repo string) (*github.Branch, err
 
 	for page := 1; page < 100; page++ {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
 		opts := &github.BranchListOptions{
 			ListOptions: github.ListOptions{Page: page, PerPage: 100},
 		}
 		items, _, err := me.client.Repositories.ListBranches(ctx, owner, repo, opts)
+		cancel()
 		if err != nil {
 			return nil, err
 		}
 
-		if items == nil || len(items) <= 0 {
+		if len(items) == 0 {
 			break
 		}
 
 		for _, item := range items {
-			if desired.Contains(*item.Name) {
+			if desired.Contains(item.GetName()) {
 				return item, nil
 			}
 			branches = append(branches, item)
 		}
 	}
 
-	if len(branches) <= 0 {
+	if len(branches) == 0 {
 		return nil, nil
 	}
 
 	for _, branch := range branches {
-		if strings.HasPrefix(*branch.Name, "release/") ||
-			strings.HasPrefix(*branch.Name, "release-") {
+		name := branch.GetName()
+		if strings.HasPrefix(name, "release/") ||
+			strings.HasPrefix(name, "release-") {
 			return branch, nil
 		}
 	}
@@ -204,23 +189,19 @@ func (me *GitHubService) findAnyWellKnownBranch(owner, repo string) (*github.Bra
 
 	for page := 1; page < 100; page++ {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
 		opts := &github.BranchListOptions{
 			ListOptions: github.ListOptions{Page: page, PerPage: 100},
 		}
 		branches, _, err := me.client.Repositories.ListBranches(ctx, owner, repo, opts)
+		cancel()
 		if err != nil {
 			return nil, err
 		}
-
-		if err != nil {
-			return nil, err
-		}
-		if branches == nil || len(branches) <= 0 {
+		if len(branches) == 0 {
 			return nil, errors.New("no branch fetched")
 		}
 		for _, branch := range branches {
-			if desired.Contains(*branch.Name) {
+			if desired.Contains(branch.GetName()) {
 				return branch, nil
 			}
 		}
@@ -234,33 +215,33 @@ func (me *GitHubService) findBestRelease(owner, repo string) (*github.Repository
 
 	for page := 1; page < 100; page++ {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
 		opts := &github.ListOptions{
 			Page:    page,
 			PerPage: 100,
 		}
 		items, _, err := me.client.Repositories.ListReleases(ctx, owner, repo, opts)
+		cancel()
 		if err != nil {
 			return nil, err
 		}
-		if items == nil || len(items) <= 0 {
+		if len(items) == 0 {
 			break
 		}
 
 		for _, item := range items {
-			if !*item.Draft && !*item.Prerelease {
+			if !item.GetDraft() && !item.GetPrerelease() {
 				return item, nil
 			}
 			releases = append(releases, item)
 		}
 	}
 
-	if len(releases) <= 0 {
+	if len(releases) == 0 {
 		return nil, nil
 	}
 
 	for _, release := range releases {
-		if !*release.Prerelease {
+		if !release.GetPrerelease() {
 			return release, nil
 		}
 	}
@@ -275,7 +256,7 @@ func (me *GitHubService) findAnyRelease(owner, repo string) (*github.RepositoryR
 	if err != nil {
 		return nil, err
 	}
-	if releases == nil || len(releases) <= 0 {
+	if len(releases) == 0 {
 		return nil, nil
 	}
 	return releases[0], nil
@@ -284,20 +265,21 @@ func (me *GitHubService) findAnyRelease(owner, repo string) (*github.RepositoryR
 func (me *GitHubService) findBestTag(owner, repo string) (*github.RepositoryTag, error) {
 	for page := 1; page < 100; page++ {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
 		opts := &github.ListOptions{Page: page, PerPage: 100}
 		tags, _, err := me.client.Repositories.ListTags(ctx, owner, repo, opts)
+		cancel()
 		if err != nil {
 			return nil, err
 		}
 
-		if tags == nil || len(tags) <= 0 {
+		if len(tags) == 0 {
 			break
 		}
 
 		for _, tag := range tags {
-			if strings.HasPrefix(*tag.Name, "release/") ||
-				strings.HasPrefix(*tag.Name, "release-") {
+			name := tag.GetName()
+			if strings.HasPrefix(name, "release/") ||
+				strings.HasPrefix(name, "release-") {
 				return tag, nil
 			}
 		}
@@ -309,20 +291,20 @@ func (me *GitHubService) findBestTag(owner, repo string) (*github.RepositoryTag,
 func (me *GitHubService) findBranch(owner, repo, name string) (*github.Branch, error) {
 	for page := 1; page < 100; page++ {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
 		opts := &github.BranchListOptions{
 			ListOptions: github.ListOptions{Page: page, PerPage: 100},
 		}
 		branches, _, err := me.client.Repositories.ListBranches(ctx, owner, repo, opts)
+		cancel()
 		if err != nil {
 			return nil, err
 		}
 
-		if branches == nil || len(branches) <= 0 {
+		if len(branches) == 0 {
 			return nil, errors.New("no branch fetched")
 		}
 		for _, branch := range branches {
-			if *branch.Name == name {
+			if branch.GetName() == name {
 				return branch, nil
 			}
 		}
@@ -332,27 +314,33 @@ func (me *GitHubService) findBranch(owner, repo, name string) (*github.Branch, e
 
 func (me *GitHubService) findTag(owner, repo, name string) (*github.RepositoryTag, error) {
 	for page := 1; page < 100; page++ {
-
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
 		opts := &github.ListOptions{Page: page, PerPage: 100}
 		tags, _, err := me.client.Repositories.ListTags(ctx, owner, repo, opts)
+		cancel()
 		if err != nil {
 			return nil, err
 		}
 
-		if tags == nil || len(tags) <= 0 {
+		if len(tags) == 0 {
 			return nil, errors.New("no tag fetched")
 		}
 
 		for _, tag := range tags {
-			if *tag.Name == name {
+			if tag.GetName() == name {
 				return tag, nil
 			}
 		}
 	}
 
 	return nil, errors.New("no matched tag")
+}
+
+func shortCommit(commit string) string {
+	if len(commit) > 7 {
+		return commit[:7]
+	}
+	return commit
 }
 
 func validateArchive(arc *common.ArchiveInfo) (*common.ArchiveInfo, error) {

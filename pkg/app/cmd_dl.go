@@ -67,6 +67,11 @@ func DoDownloadArchive(url string, shouldSendMail bool) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			logrus.Error(err)
+		}
+	}()
 
 	err = SaveRepo(store, repoUrl)
 	if err != nil {
@@ -181,7 +186,7 @@ func DoDownloadArchive(url string, shouldSendMail bool) error {
 		} else {
 			subject := fmt.Sprintf("%s:%s/%s.tar.xz", repoUrl.Platform, repoUrl.Owner, arc.Name)
 
-			err := sendMailWithRetry(destPath, subject, 999)
+			err := sendMailWithRetry(destPath, subject, 8)
 			if err != nil {
 				return err
 			}
