@@ -43,6 +43,16 @@ func DoMirrorRepository(url string, useSSH, shouldSendMail bool, maxRetries int)
 	logrus.Infof("Platform: %s", repoUrl.Platform)
 	logrus.Infof("Repository: %s/%s", repoUrl.Owner, repoUrl.Repo)
 
+	if err = os.MkdirAll(cfg.Paths.Temp, os.ModePerm); err != nil {
+		return err
+	}
+	if err = os.MkdirAll(cfg.Paths.Data, os.ModePerm); err != nil {
+		return err
+	}
+	if err = os.MkdirAll(cfg.Paths.Repository, os.ModePerm); err != nil {
+		return err
+	}
+
 	store, err := data.OpenDataStore(cfg.Paths.Data)
 	if err != nil {
 		return err
