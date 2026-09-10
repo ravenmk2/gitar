@@ -1,6 +1,7 @@
 # 🐹 适合仓鼠症的代码下载小工具
 
-👷 WIP
+[![test](https://github.com/ravenmk2/gitar/actions/workflows/test.yml/badge.svg)](https://github.com/ravenmk2/gitar/actions/workflows/test.yml)
+[![release](https://github.com/ravenmk2/gitar/actions/workflows/release.yml/badge.svg)](https://github.com/ravenmk2/gitar/actions/workflows/release.yml)
 
 ### 📜 使用示例
 
