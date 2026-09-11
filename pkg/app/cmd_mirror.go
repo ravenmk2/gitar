@@ -103,24 +103,28 @@ func DoMirrorRepository(url string, useSSH, shouldSendMail bool, maxRetries int)
 	return repoFetchUntilOk(repoDir, repo, useSSH, maxRetries)
 }
 
+// mirrorRefSpec 使本地引用布局与远端完全一致（含 tags 等所有 refs），等价于 git clone --mirror
+const mirrorRefSpec = gitcfg.RefSpec("+refs/*:refs/*")
+
 func ensureRemote(repo *git.Repository, url string) error {
 	remoteName := "origin"
-	remote, err := repo.Remote(remoteName)
+	mirrorConfig := &gitcfg.RemoteConfig{
+		Name:  remoteName,
+		URLs:  []string{url},
+		Fetch: []gitcfg.RefSpec{mirrorRefSpec},
+	}
 
+	remote, err := repo.Remote(remoteName)
 	if err != nil {
 		if errors.Is(err, git.ErrRemoteNotFound) {
 			logrus.Infof("Add remote: %s => %s", remoteName, url)
-			_, err = repo.CreateRemote(&gitcfg.RemoteConfig{
-				Name: remoteName,
-				URLs: []string{url},
-			})
+			_, err = repo.CreateRemote(mirrorConfig)
 			return err
 		}
 		return err
 	}
 
-	remoteUrl := remote.Config().URLs[0]
-	if remoteUrl == url {
+	if remoteConfigMatches(remote.Config(), mirrorConfig) {
 		return nil
 	}
 
@@ -129,11 +133,23 @@ func ensureRemote(repo *git.Repository, url string) error {
 	if err != nil {
 		return err
 	}
-	_, err = repo.CreateRemote(&gitcfg.RemoteConfig{
-		Name: remoteName,
-		URLs: []string{url},
-	})
+	_, err = repo.CreateRemote(mirrorConfig)
 	return err
+}
+
+func remoteConfigMatches(current, expected *gitcfg.RemoteConfig) bool {
+	if len(current.URLs) == 0 || current.URLs[0] != expected.URLs[0] {
+		return false
+	}
+	if len(current.Fetch) != len(expected.Fetch) {
+		return false
+	}
+	for i, spec := range expected.Fetch {
+		if current.Fetch[i] != spec {
+			return false
+		}
+	}
+	return true
 }
 
 func openOrInit(repoDir string) (*git.Repository, error) {
@@ -193,6 +209,7 @@ func repoFetchBuiltin(repoDir string, remote *git.Remote) error {
 	defer cancel()
 	err := remote.FetchContext(ctx, &git.FetchOptions{
 		Progress: os.Stdout,
+		Prune:    true,
 	})
 	if err == nil {
 		return nil
@@ -207,7 +224,7 @@ func repoFetchBuiltin(repoDir string, remote *git.Remote) error {
 func repoFetchCli(repoDir string, remote *git.Remote) error {
 	remoteName := remote.Config().Name
 	logrus.Infof("Fetching %s", remoteName)
-	cmd := exec.Command("git", "fetch", remoteName)
+	cmd := exec.Command("git", "fetch", "--prune", remoteName)
 	cmd.Dir = repoDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -231,9 +248,26 @@ func repoRemoveTempFiles(dir string) {
 			continue
 		}
 		logrus.Warnf("Remove temp file: %s", rel)
-		err = os.Remove(file)
+		err = removeFileWithRetry(file, 5, 200*time.Millisecond)
 		if err != nil {
 			logrus.Error(err)
 		}
 	}
+}
+
+// removeFileWithRetry 带重试地删除文件。
+// Windows 上 fetch 失败后 go-git 打开的 pack 临时文件句柄可能尚未释放（或被杀软扫描占用），
+// 直接删除会报 "being used by another process"，稍候重试通常即可成功。
+func removeFileWithRetry(path string, attempts int, delay time.Duration) error {
+	var err error
+	for i := 0; i < attempts; i++ {
+		err = os.Remove(path)
+		if err == nil || os.IsNotExist(err) {
+			return nil
+		}
+		if i+1 < attempts {
+			time.Sleep(delay)
+		}
+	}
+	return err
 }
